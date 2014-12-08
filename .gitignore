@@ -1,0 +1,4 @@
+Build/Reports/
+vendor/
+.idea/
+composer.lock
