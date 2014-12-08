@@ -23,6 +23,16 @@ class BinaryDecisionDiagramBuilder {
 	protected $allowedInputs;
 
 	/**
+	 * @var int
+	 */
+	protected $nodeCounter = 2;
+
+	/**
+	 * @var array
+	 */
+	protected $nodes = array();
+
+	/**
 	 * @param string[] $variables
 	 */
 	public function __construct(array $variables) {
@@ -72,58 +82,74 @@ class BinaryDecisionDiagramBuilder {
 	 */
 	protected function getNodesForDiagram() {
 		// the first two nodes are the possible end states 0 and 1
-		$nodes = array();
-		$nodeCounter = 2;
+		$this->nodes = array();
 		$lastVariable = $lastInsertedNode = NULL;
 
-		$this->sortAllowedInputs();
+		//$this->sortAllowedInputs();
 
-		foreach ($this->allowedInputs as $index => $input) {
-			echo ">> Building for input $index\n";
-			// we have only stored minterms, so as long as we don’t encounter an input, everything should default to
-			// FALSE
-			$lastFalseNode = 0;
-			$lastTrueNode = 1;
+		$this->expandNodes();
+		$this->nodes = array_merge(array(array(0), array(1)), $this->nodes);
 
-			// climb from the bottom to the top
-			foreach (array_reverse($this->variables) as $variable) {
-				echo ">> Building for variable $variable\n";
-				if (!isset($input[$variable])) {
-					echo ">> variable not found\n";
-					// variable is not set, i.e. this input does not care for it
-					continue;
-				}
-				$candidateNode = $this->findNodeForVariable($nodes, $variable, $lastFalseNode, $lastTrueNode);
+		return $this->nodes;
+	}
 
-				if ($candidateNode == NULL) {
-					echo ">> No node found\n";
-					echo ">> inserting node: $variable/$lastFalseNode/$lastTrueNode/$nodeCounter\n";
-					$nodes[] = array($variable, $lastFalseNode, $lastTrueNode, $nodeCounter);
-					if ($input[$variable] === TRUE) {
-						$lastTrueNode = $nodeCounter;
-					} elseif ($input[$variable] === FALSE) {
-						$lastFalseNode = $nodeCounter;
-					}
-					$lastInsertedNode = $nodes[count($nodes)-1];
-					echo ">> last FALSE/TRUE node: $lastFalseNode/$lastTrueNode\n";
-					++$nodeCounter;
-				} else {
-					echo ">> last FALSE/TRUE node: $lastFalseNode/$lastTrueNode\n";
-					print_r($candidateNode);
-					if ($input[$variable] === TRUE) {
-						$lastTrueNode = $candidateNode[3];
-					} elseif ($input[$variable] === FALSE) {
-						$lastFalseNode = $candidateNode[3];
-					}
-					$lastInsertedNode = NULL;
-					print_r($nodes);
-				}
+	protected function expandNodes() {
+		$variable = array_shift($this->variables);
+		list($falseInputs, $trueInputs) = $this->filterInputsByVariableValue($this->allowedInputs, $variable);
+		$falseNode = $this->expandNodesForFirstVariable($this->variables, FALSE, $falseInputs);
+		$trueNode = $this->expandNodesForFirstVariable($this->variables, TRUE, $trueInputs);
+
+		$this->nodes[] = array($variable, $falseNode, $trueNode, $this->nodeCounter);
+	}
+
+	protected function expandNodesForFirstVariable($variableStack, $expansionValue, $inputs) {
+		$variable = array_shift($variableStack);
+echo "inputs: ", count($inputs), "\n";
+		if (count($inputs) == 0) {
+			// we’re at the bottom of the tree
+			if ($expansionValue == FALSE) {
+				$leftNode = 1;
+				$rightNode = 0;
+			} else {
+				$leftNode = 0;
+				$rightNode = 1;
 			}
-			$lastVariable = $variable;
-		}
-		$nodes = array_merge(array(array(), array()), $nodes);
+		} else {
+			//echo "Expanding for $variable, ", $expansionValue ? 'true' : 'false', "\n";
+			list($falseInputs, $trueInputs) = $this->filterInputsByVariableValue($inputs, $variable);
+			//echo "Inputs: ", count($trueInputs), " ", count($falseInputs), "\n";
 
-		return $nodes;
+			$leftNode = $this->expandNodesForFirstVariable($variableStack, FALSE, $falseInputs);
+			$rightNode = $this->expandNodesForFirstVariable($variableStack, TRUE, $trueInputs);
+		}
+		$this->nodes[] = array($variable, $leftNode, $rightNode, $this->nodeCounter);
+		++$this->nodeCounter;
+
+		return $this->nodeCounter - 1;
+	}
+
+	/**
+	 * @param $inputs
+	 * @param $variable
+	 * @return array
+	 */
+	protected function filterInputsByVariableValue($inputs, $variable) {
+		$trueInputs = $falseInputs = array();
+		// filter out inputs where the current variable is set to FALSE
+		foreach ($inputs as $input) {
+			if (!isset($input[$variable])) {
+				$falseInputs[] = $input;
+				$trueInputs[] = $input;
+				continue;
+			}
+			if ($input[$variable] == FALSE) {
+				$falseInputs[] = $input;
+			} else {
+				$trueInputs[] = $input;
+			}
+		}
+
+		return array($falseInputs, $trueInputs);
 	}
 
 	/**
@@ -137,7 +163,7 @@ class BinaryDecisionDiagramBuilder {
 echo "Lookup: $variable – $falseOutput – $trueOutput in this array:\n";
 print_r($nodes);
 		foreach ($nodes as $node) {
-			if ($node[0] == $variable && $node[1] == $falseOutput && $node[2] == $trueOutput) {
+			if ($node[0] == $variable && ($falseOutput == -1 || $node[1] == $falseOutput) && ($trueOutput == -1 || $node[2] == $trueOutput)) {
 				return $node;
 			}
 		}
