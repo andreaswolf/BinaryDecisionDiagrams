@@ -56,6 +56,23 @@ class BinaryDecisionDiagramBuilderTest extends \PHPUnit_Framework_TestCase {
 	/**
 	 * @test
 	 */
+	public function diagramForLogicalXorOfTwoVariablesIsCorrectlyBuilt() {
+		$subject = new BinaryDecisionDiagramBuilder(array('A', 'B'));
+
+		$subject->addAllowedInput(array('A' => TRUE, 'B' => FALSE), TRUE);
+		$subject->addAllowedInput(array('A' => FALSE, 'B' => TRUE), TRUE);
+
+		$diagram = $subject->getDiagram();
+
+		$this->assertFalse($diagram->getResultForInput(array('A' => FALSE, 'B' => FALSE)));
+		$this->assertFalse($diagram->getResultForInput(array('A' => TRUE, 'B' => TRUE)));
+		$this->assertTrue($diagram->getResultForInput(array('A' => TRUE, 'B' => FALSE)));
+		$this->assertTrue($diagram->getResultForInput(array('A' => FALSE, 'B' => TRUE)));
+	}
+
+	/**
+	 * @test
+	 */
 	public function partiallyDefinedInputForFunctionIsAccepted() {
 		$subject = new BinaryDecisionDiagramBuilder(array('A', 'B'));
 
