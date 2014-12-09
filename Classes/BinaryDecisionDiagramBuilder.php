@@ -60,24 +60,8 @@ class BinaryDecisionDiagramBuilder {
 	}
 
 	/**
+	 * Computes and returns the nodes from the diagram.
 	 *
-	 */
-	protected function sortAllowedInputs() {
-		usort($this->allowedInputs, function ($a, $b) {
-			$i = 1;$sort = 0;
-			foreach (array_reverse($this->variables) as $variable) {
-				if (isset($a[$variable]) && !isset($b[$variable])) {
-					$sort -= pow(2, $i);
-				}
-				if (!isset($a[$variable]) && isset($b[$variable])) {
-					$sort += pow(2, $i);
-				}
-				++$i;
-			}
-		});
-	}
-
-	/**
 	 * @return array
 	 */
 	protected function getNodesForDiagram() {
@@ -85,38 +69,56 @@ class BinaryDecisionDiagramBuilder {
 		$this->nodes = array();
 		$lastVariable = $lastInsertedNode = NULL;
 
-		//$this->sortAllowedInputs();
-
-		$this->expandNodes();
+		$this->developForVariable(0, $this->allowedInputs);
 		$this->nodes = array_merge(array(array(0), array(1)), $this->nodes);
 
 		return $this->nodes;
 	}
 
-	protected function expandNodes() {
-		$inputItems = $this->allowedInputs;
+	/**
+	 * @param int $variableNumber
+	 * @param array $inputs
+	 * @return int The uid of a
+	 */
+	protected function developForVariable($variableNumber, $inputs) {
+		if ($variableNumber >= count($this->variables)) {
+			return (count($inputs) > 0) ? 1 : 0;
+		}
+		$variable = $this->variables[$variableNumber];
+		$filteredForTrue = $this->filterInputsForVariableValue($this->variables[$variableNumber], TRUE, $inputs);
+		$filteredForFalse = $this->filterInputsForVariableValue($this->variables[$variableNumber], FALSE, $inputs);
 
-		$variable = $this->variables[0];
-		$trueNodes = $this->filterInputsForVariableValue($variable, TRUE, $this->allowedInputs);
-		$falseNodes = $this->filterInputsForVariableValue($variable, FALSE, $this->allowedInputs);
-		if (count($trueNodes)) {
-			$this->nodes[] = array($variable, 0, 1);
+		$trueNode = $this->developForVariable($variableNumber + 1, $filteredForTrue);
+		$falseNode = $this->developForVariable($variableNumber + 1, $filteredForFalse);
+		if ($trueNode == $falseNode) {
+			return $trueNode;
 		}
-		if (count($falseNodes)) {
-			$this->nodes[] = array($variable, 1, 0);
-		}
+
+		$this->nodes[] = array($variable, $falseNode, $trueNode, $this->nodeCounter);
+		++$this->nodeCounter;
+
+		return $this->nodeCounter - 1;
 	}
 
-	protected function filterInputsForVariableValue($variable, $value, $inputs) {
+	/**
+	 * Filters the given inputs by the given variable value.
+	 *
+	 * "Don’t care" values (= variable value not set) are always included.
+	 *
+	 * @param string $variableName
+	 * @param boolean $value The value of the variable
+	 * @param array $inputs The inputs to filter
+	 * @return array
+	 */
+	protected function filterInputsForVariableValue($variableName, $value, $inputs) {
 		$filtered = array();
 
 		foreach ($inputs as $input) {
-			if ($input[$variable] == $value) {
+			if (!isset($input[$variableName]) || (isset($input[$variableName]) && $input[$variableName] == $value)) {
 				$filtered[] = $input;
 			}
 		}
 		return $filtered;
 	}
-
 
 }
